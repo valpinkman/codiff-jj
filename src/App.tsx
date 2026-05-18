@@ -271,6 +271,9 @@ const codeViewItemMetricsWithWalkthrough = {
   diffHeaderHeight: 78,
 };
 
+const diffContextExpansionLineCount = 100;
+const diffCollapsedContextThreshold = 12;
+
 const workerHighlighterOptions = {
   lineDiffType: 'char' as const,
   maxLineDiffLength: 2000,
@@ -1607,6 +1610,9 @@ function CodexAvatar() {
   );
 }
 
+const canAskCodexForComment = (comment: ReviewComment) =>
+  comment.body.trim().length > 0 && comment.codexReply?.status !== 'loading';
+
 function ReviewAnnotation({
   annotation,
   comments,
@@ -1641,6 +1647,18 @@ function ReviewAnnotation({
 
   const handleCommentKeyDown = useCallback(
     (event: ReactKeyboardEvent<HTMLTextAreaElement>, comment: ReviewComment) => {
+      if (
+        event.key === 'Enter' &&
+        event.metaKey &&
+        !event.shiftKey &&
+        canAskCodexForComment(comment)
+      ) {
+        event.preventDefault();
+        event.stopPropagation();
+        onAskCodex(comment.id);
+        return;
+      }
+
       if (event.key !== 'Escape') {
         return;
       }
@@ -1652,7 +1670,7 @@ function ReviewAnnotation({
         onDeleteComment(comment.id);
       }
     },
-    [onDeleteComment],
+    [onAskCodex, onDeleteComment],
   );
 
   if (annotationComments.length === 0) {
@@ -1662,8 +1680,7 @@ function ReviewAnnotation({
   return (
     <div className="review-comment-thread">
       {annotationComments.map((comment) => {
-        const canAskCodex =
-          comment.body.trim().length > 0 && comment.codexReply?.status !== 'loading';
+        const canAskCodex = canAskCodexForComment(comment);
 
         return (
           <Fragment key={comment.id}>
@@ -1716,12 +1733,14 @@ function ReviewAnnotation({
                   </div>
                   <div
                     className={`review-comment-codex-reply${
-                      comment.codexReply.status === 'loading' ? ' loading' : ''
+                      comment.codexReply.status === 'loading' ? ' is-loading' : ''
                     }${comment.codexReply.status === 'error' ? ' error' : ''}`}
                   >
-                    {comment.codexReply.status === 'loading'
-                      ? 'Waiting on Codex…'
-                      : renderMarkdown(comment.codexReply.body ?? comment.codexReply.error ?? '')}
+                    {comment.codexReply.status === 'loading' ? (
+                      <span className="review-comment-codex-loading">Waiting for Codex…</span>
+                    ) : (
+                      renderMarkdown(comment.codexReply.body ?? comment.codexReply.error ?? '')
+                    )}
                   </div>
                 </div>
               </div>
@@ -1879,11 +1898,14 @@ function ReviewCodeView({
   const codeViewOptions: CodeViewOptions<ReviewAnnotationMetadata> = useMemo(
     () =>
       ({
+        collapsedContextThreshold: diffCollapsedContextThreshold,
         diffIndicators: 'bars',
         diffStyle: 'split',
         enableGutterUtility: true,
         enableLineSelection: false,
-        hunkSeparators: 'simple',
+        expandUnchanged: false,
+        expansionLineCount: diffContextExpansionLineCount,
+        hunkSeparators: 'line-info-basic',
         itemMetrics:
           walkthroughNotes.size > 0 ? codeViewItemMetricsWithWalkthrough : codeViewItemMetrics,
         layout: codeViewLayout,
