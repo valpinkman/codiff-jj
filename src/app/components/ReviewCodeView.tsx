@@ -50,7 +50,6 @@ import { renderMarkdown } from '../../lib/markdown.tsx';
 import {
   getCommentKey,
   getReviewCommentLineLabel,
-  getReviewCommentLineSelection,
   getReviewCommentsDigest,
   isInteractiveReviewEvent,
   shouldDiscardReviewCommentOnEscape,
@@ -238,7 +237,7 @@ function ReviewAnnotation({
   identity: GitIdentity | null;
   isPullRequest: boolean;
   onAskCodex: (commentId: string) => void;
-  onCommentBlur: () => void;
+  onCommentBlur: (comment: ReviewComment, body: string) => void;
   onCommentFocus: (comment: ReviewComment) => void;
   onDeleteComment: (commentId: string) => void;
   onSubmitComment: (commentId: string) => void;
@@ -358,7 +357,7 @@ function ReviewAnnotation({
                 <textarea
                   aria-label={`Comment on ${comment.filePath} ${getReviewCommentLineLabel(comment)}`}
                   className={`review-comment-input${comment.isReadOnly ? ' read-only' : ''}`}
-                  onBlur={onCommentBlur}
+                  onBlur={(event) => onCommentBlur(comment, event.currentTarget.value)}
                   onChange={(event) => onUpdateComment(comment.id, event.currentTarget.value)}
                   onFocus={() => onCommentFocus(comment)}
                   onKeyDown={(event) => handleCommentKeyDown(event, comment)}
@@ -456,8 +455,11 @@ export function ReviewCodeView({
   walkthroughNotes: ReadonlyMap<string, WalkthroughNote>;
 }) {
   const codeViewRef = useRef<CodeViewHandle<ReviewAnnotationMetadata>>(null);
+  const deferredTimersRef = useRef<Set<number>>(new Set());
   const handledScrollRequestRef = useRef<number | null>(null);
+  const emptyCommentDeleteTimersRef = useRef<Map<string, number>>(new Map());
   const highlightFrameRef = useRef<number | null>(null);
+  const ignoreNextLineSelectionEndRef = useRef(false);
   const [markdownPreviewSections, setMarkdownPreviewSections] = useState<ReadonlySet<string>>(
     () => new Set(),
   );
@@ -617,6 +619,68 @@ export function ReviewCodeView({
     walkthroughNotes,
   ]);
 
+  const clearCommentLineHighlight = useCallback(() => {
+    codeViewRef.current?.clearSelectedLines();
+    setSelectedLines(null);
+  }, []);
+
+  const deferCommentLineHighlightClear = useCallback(() => {
+    const timer = window.setTimeout(() => {
+      deferredTimersRef.current.delete(timer);
+      clearCommentLineHighlight();
+    }, 0);
+    deferredTimersRef.current.add(timer);
+  }, [clearCommentLineHighlight]);
+
+  const cancelPendingEmptyCommentDeletes = useCallback(() => {
+    for (const timer of emptyCommentDeleteTimersRef.current.values()) {
+      window.clearTimeout(timer);
+      deferredTimersRef.current.delete(timer);
+    }
+    emptyCommentDeleteTimersRef.current.clear();
+  }, []);
+
+  const createCommentForRange = useCallback(
+    (
+      range: CodeViewLineSelection['range'],
+      context: { item: CodeViewItem<ReviewAnnotationMetadata> },
+    ) => {
+      if (context.item.type !== 'diff') {
+        return;
+      }
+
+      const meta = itemMetadata.get(context.item.id);
+      if (!meta || meta.isCollapsed) {
+        return;
+      }
+
+      const startSide = range.side ?? range.endSide ?? 'additions';
+      const endSide = range.endSide ?? startSide;
+      if (startSide !== endSide) {
+        window.alert('Review comments cannot span both sides of a split diff.');
+        return;
+      }
+
+      const start = Math.min(range.start, range.end);
+      const end = Math.max(range.start, range.end);
+      cancelPendingEmptyCommentDeletes();
+      onCreateComment({
+        filePath: meta.file.path,
+        lineNumber: end,
+        sectionId: meta.section.id,
+        side: endSide,
+        ...(end !== start ? { startLineNumber: start } : {}),
+      });
+      deferCommentLineHighlightClear();
+    },
+    [
+      cancelPendingEmptyCommentDeletes,
+      deferCommentLineHighlightClear,
+      itemMetadata,
+      onCreateComment,
+    ],
+  );
+
   const codeViewOptions: CodeViewOptions<ReviewAnnotationMetadata> = useMemo(
     () =>
       ({
@@ -633,29 +697,8 @@ export function ReviewCodeView({
         layout: codeViewLayout,
         lineHoverHighlight: 'both',
         onGutterUtilityClick: (range, context) => {
-          if (context.item.type !== 'diff') {
-            return;
-          }
-
-          const meta = itemMetadata.get(context.item.id);
-          if (!meta || meta.isCollapsed) {
-            return;
-          }
-          const startSide = range.side ?? range.endSide ?? 'additions';
-          const endSide = range.endSide ?? startSide;
-          if (startSide !== endSide) {
-            window.alert('Review comments cannot span both sides of a split diff.');
-            return;
-          }
-          const start = Math.min(range.start, range.end);
-          const end = Math.max(range.start, range.end);
-          onCreateComment({
-            filePath: meta.file.path,
-            lineNumber: end,
-            sectionId: meta.section.id,
-            side: endSide,
-            ...(end !== start ? { startLineNumber: start } : {}),
-          });
+          ignoreNextLineSelectionEndRef.current = context.item.type === 'diff';
+          createCommentForRange(range, context);
         },
         onLineClick: (line, context) => {
           if (isInteractiveReviewEvent(line.event)) {
@@ -672,12 +715,25 @@ export function ReviewCodeView({
             return;
           }
 
+          cancelPendingEmptyCommentDeletes();
           onCreateComment({
             filePath: meta.file.path,
             lineNumber: line.lineNumber,
             sectionId: meta.section.id,
             side,
           });
+        },
+        onLineSelectionEnd: (range, context) => {
+          if (ignoreNextLineSelectionEndRef.current) {
+            ignoreNextLineSelectionEndRef.current = false;
+            return;
+          }
+
+          if (!range) {
+            return;
+          }
+
+          createCommentForRange(range, context);
         },
         onPostRender: (node, _instance, context) => {
           node.classList.toggle(
@@ -694,17 +750,47 @@ export function ReviewCodeView({
         tokenizeMaxLength: 100_000,
         unsafeCSS: codeViewUnsafeCSS,
       }) satisfies CodeViewOptions<ReviewAnnotationMetadata>,
-    [itemMetadata, onCreateComment, walkthroughNotes.size],
+    [
+      cancelPendingEmptyCommentDeletes,
+      createCommentForRange,
+      itemMetadata,
+      onCreateComment,
+      walkthroughNotes.size,
+    ],
   );
 
-  const highlightCommentLines = useCallback((comment: ReviewComment) => {
-    setSelectedLines(getReviewCommentLineSelection(comment));
+  const focusComment = useCallback((comment: ReviewComment) => {
+    const timer = emptyCommentDeleteTimersRef.current.get(comment.id);
+    if (timer == null) {
+      return;
+    }
+
+    window.clearTimeout(timer);
+    deferredTimersRef.current.delete(timer);
+    emptyCommentDeleteTimersRef.current.delete(comment.id);
   }, []);
 
-  const clearCommentLineHighlight = useCallback(() => {
-    codeViewRef.current?.clearSelectedLines();
-    setSelectedLines(null);
-  }, []);
+  const blurComment = useCallback(
+    (comment: ReviewComment, body: string) => {
+      clearCommentLineHighlight();
+      if (!comment.isReadOnly && body.trim().length === 0) {
+        const existingTimer = emptyCommentDeleteTimersRef.current.get(comment.id);
+        if (existingTimer != null) {
+          window.clearTimeout(existingTimer);
+          deferredTimersRef.current.delete(existingTimer);
+        }
+
+        const timer = window.setTimeout(() => {
+          deferredTimersRef.current.delete(timer);
+          emptyCommentDeleteTimersRef.current.delete(comment.id);
+          onDeleteComment(comment.id);
+        }, 120);
+        deferredTimersRef.current.add(timer);
+        emptyCommentDeleteTimersRef.current.set(comment.id, timer);
+      }
+    },
+    [clearCommentLineHighlight, onDeleteComment],
+  );
 
   const deleteComment = useCallback(
     (commentId: string) => {
@@ -831,6 +917,11 @@ export function ReviewCodeView({
 
   useEffect(
     () => () => {
+      for (const timer of deferredTimersRef.current) {
+        window.clearTimeout(timer);
+      }
+      deferredTimersRef.current.clear();
+      emptyCommentDeleteTimersRef.current.clear();
       if (highlightFrameRef.current != null) {
         window.cancelAnimationFrame(highlightFrameRef.current);
       }
@@ -919,8 +1010,8 @@ export function ReviewCodeView({
           identity={gitIdentity}
           isPullRequest={isPullRequest}
           onAskCodex={onAskCodex}
-          onCommentBlur={clearCommentLineHighlight}
-          onCommentFocus={highlightCommentLines}
+          onCommentBlur={blurComment}
+          onCommentFocus={focusComment}
           onDeleteComment={deleteComment}
           onSubmitComment={onSubmitComment}
           onUpdateComment={onUpdateComment}
@@ -929,12 +1020,12 @@ export function ReviewCodeView({
     },
     [
       comments,
-      clearCommentLineHighlight,
+      blurComment,
       deleteComment,
       focusCommentId,
       focusCommentRequest,
+      focusComment,
       gitIdentity,
-      highlightCommentLines,
       isPullRequest,
       markMarkdownPreviewLayoutReady,
       onAskCodex,

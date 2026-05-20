@@ -1077,6 +1077,26 @@ export default function App() {
       return;
     }
 
+    const emptyDraft = reviewCommentsRef.current.find(
+      (candidate) => !candidate.isReadOnly && candidate.body.length === 0,
+    );
+    if (emptyDraft) {
+      setFocusCommentId(emptyDraft.id);
+      setFocusCommentRequest((current) => current + 1);
+      setReviewComments((current) =>
+        current.map((candidate) =>
+          candidate.id === emptyDraft.id
+            ? {
+                ...comment,
+                body: '',
+                id: emptyDraft.id,
+              }
+            : candidate,
+        ),
+      );
+      return;
+    }
+
     const id = crypto.randomUUID();
     setFocusCommentId(id);
     setFocusCommentRequest((current) => current + 1);
