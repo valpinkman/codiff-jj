@@ -78,6 +78,7 @@ import {
   getCommentKey,
   getReviewCommentLineLabel,
   getReviewCommentsDigest,
+  hasActiveTextSelection,
   isInteractiveReviewEvent,
   shouldDiscardReviewCommentOnEscape,
   updateStickyHeaderState,
@@ -1871,6 +1872,10 @@ export function ReviewCodeView({
             shouldLoadDiffSectionContents(meta.section)
           ) {
             onLoadSection(meta.file, meta.section);
+            return;
+          }
+
+          if (hasActiveTextSelection()) {
             return;
           }
 

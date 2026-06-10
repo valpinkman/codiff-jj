@@ -12,6 +12,11 @@ export const isInteractiveReviewEvent = (event: PointerEvent) =>
         target.closest('.review-comment-thread')),
   );
 
+export const hasActiveTextSelection = () => {
+  const selection = window.getSelection();
+  return selection != null && selection.rangeCount > 0 && !selection.isCollapsed;
+};
+
 export const getReviewCommentLineSelection = (comment: ReviewComment): CodeViewLineSelection => ({
   id: `diff:${comment.sectionId}`,
   range: {
