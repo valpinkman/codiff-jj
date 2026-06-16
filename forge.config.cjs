@@ -9,6 +9,10 @@ const entitlementsPath = join(__dirname, 'electron/entitlements.plist');
 const iconPath = existsSync(join(__dirname, 'electron/icons/icon.icns'))
   ? './electron/icons/icon'
   : undefined;
+const macIconAssetName = 'Icon';
+const macAssetCatalogPath = existsSync(join(__dirname, 'electron/icons/Assets.car'))
+  ? './electron/icons/Assets.car'
+  : undefined;
 const linuxIconPath = './electron/icons/icon.png';
 const windowsIconPath = './electron/icons/icon.ico';
 const skipSquirrel = process.env.CODIFF_SKIP_SQUIRREL === '1';
@@ -45,6 +49,25 @@ const osxNotarize =
 
 /** @type {CodiffForgeConfig} */
 module.exports = {
+  hooks: {
+    prePackage: async (forgeConfig, platform) => {
+      if (platform !== 'darwin' || !macAssetCatalogPath) {
+        return;
+      }
+
+      forgeConfig.packagerConfig.extendInfo = {
+        ...(typeof forgeConfig.packagerConfig.extendInfo === 'object'
+          ? forgeConfig.packagerConfig.extendInfo
+          : {}),
+        CFBundleIconName: macIconAssetName,
+      };
+      const extraResource = forgeConfig.packagerConfig.extraResource;
+      forgeConfig.packagerConfig.extraResource = [
+        ...(Array.isArray(extraResource) ? extraResource : extraResource ? [extraResource] : []),
+        macAssetCatalogPath,
+      ];
+    },
+  },
   makers: [
     {
       config: {
