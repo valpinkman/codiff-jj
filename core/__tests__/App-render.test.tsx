@@ -2,6 +2,8 @@
  * @vitest-environment jsdom
  */
 
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { beforeEach, expect, test, vi } from 'vite-plus/test';
@@ -270,6 +272,31 @@ test('empty code font family removes the root CSS variable', async () => {
     expect(document.documentElement.style.getPropertyValue('--font-diff-size')).toBe('13px');
     expect(document.documentElement.style.getPropertyValue('--font-diff-line-height')).toBe('20px');
   });
+
+  await act(async () => root.unmount());
+  container.remove();
+});
+
+test('empty repository state fills the review pane for centered layout', async () => {
+  window.codiff = createCodiffMock();
+
+  const container = document.createElement('div');
+  document.body.append(container);
+  const root = createRoot(container);
+
+  await act(async () => {
+    root.render(<App />);
+  });
+
+  await waitFor(() => {
+    const emptyState = container.querySelector<HTMLElement>('.review > .empty-state');
+    expect(emptyState?.textContent).toContain('No local changes');
+  });
+  const css = readFileSync(resolve('core/App.css'), 'utf8');
+  const emptyStateRule = css.match(/\.review > \.empty-state \{([^}]*)\}/)?.[1];
+  expect(emptyStateRule).toContain('flex: 1;');
+  expect(emptyStateRule).toContain('min-width: 0;');
+  expect(emptyStateRule).toContain('width: 100%;');
 
   await act(async () => root.unmount());
   container.remove();

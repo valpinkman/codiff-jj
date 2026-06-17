@@ -2292,6 +2292,12 @@
   justify-content: center;
 }
 
+.review > .empty-state {
+  flex: 1;
+  min-width: 0;
+  width: 100%;
+}
+
 .loading {
   color: var(--muted);
   font-family: var(--font-mono);
