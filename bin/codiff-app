@@ -38,6 +38,7 @@ show_help() {
   printf '  %-22s%s%s%s\n' "--claude-session <id>" "$gray" "Attach Claude Code session metadata to a walkthrough." "$reset"
   printf '  %-22s%s%s%s\n' "--help, -h" "$gray" "Show this help message and exit." "$reset"
   printf '  %-22s%s%s%s\n' "--pi-session <id>" "$gray" "Attach Pi session metadata to a walkthrough." "$reset"
+  printf '  %-22s%s%s%s\n' "--share" "$gray" "Generate and share a narrative walkthrough, then print its URL." "$reset"
   printf '  %-22s%s%s%s\n' "--version, -v" "$gray" "Show version number and exit." "$reset"
   printf '  %-22s%s%s%s\n' "--walkthrough, -w" "$gray" "Start with an LLM-generated narrative walkthrough." "$reset"
   printf '  %-22s%s%s%s\n' "--walkthrough-context <file>" "$gray" "Seed a walkthrough with Codex conversation context JSON." "$reset"
@@ -54,7 +55,26 @@ show_help() {
   printf '  %-22s%s%s%s\n' "codiff mr 75" "$gray" "Review GitLab merge request !75." "$reset"
   printf '  %-22s%s%s%s\n' "codiff -w" "$gray" "Start with an LLM narrative walkthrough." "$reset"
   printf '  %-22s%s%s%s\n' "codiff -w a1b2c3d" "$gray" "Walkthrough a specific commit." "$reset"
+  printf '  %-22s%s%s%s\n' "codiff --share" "$gray" "Share an LLM narrative walkthrough." "$reset"
+  printf '  %-22s%s%s%s\n' "codiff --share HEAD" "$gray" "Share a walkthrough for a commit." "$reset"
 }
+
+for arg in "$@"; do
+  if [ "$arg" = "--share" ]; then
+    runtime="${CODIFF_NODE_COMMAND:-}"
+    if [ -z "$runtime" ]; then
+      electron_exec="$(ls "$app_path/Contents/MacOS/" 2>/dev/null | head -n 1)"
+      if [ -n "$electron_exec" ]; then
+        runtime="$app_path/Contents/MacOS/$electron_exec"
+      fi
+    fi
+    if [ -z "$runtime" ] || [ ! -x "$runtime" ]; then
+      printf '%s\n' "codiff: could not find the bundled runtime for --share." >&2
+      exit 1
+    fi
+    ELECTRON_RUN_AS_NODE=1 exec "$runtime" "$script_dir/codiff.js" "$@"
+  fi
+done
 
 repository_path=""
 codex_session_id=""

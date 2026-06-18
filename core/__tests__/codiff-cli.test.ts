@@ -208,6 +208,15 @@ test('parseArguments recognizes a pre-authored walkthrough file', () => {
   });
 });
 
+test('parseArguments treats --share as a headless walkthrough for the same target syntax', () => {
+  expect(parseArguments(['--share', 'HEAD'])).toMatchObject({
+    commitRef: 'HEAD',
+    requestedPath: resolve(process.cwd()),
+    share: true,
+    walkthrough: true,
+  });
+});
+
 test('parseArguments recognizes the walkthrough guide flag', () => {
   expect(parseArguments(['--walkthrough-guide'])).toMatchObject({ walkthroughGuide: true });
   expect(parseArguments([])).not.toHaveProperty('walkthroughGuide');
@@ -868,6 +877,23 @@ test('packaged terminal helper forwards the agent and Claude session to Electron
   }
 });
 
+test('packaged terminal helper runs --share through the bundled Node entry point', async () => {
+  const logger = await createFakeCommandLogger('codiff-packaged-share-', 'runtime');
+
+  try {
+    await execFileAsync(resolve('bin/codiff-app'), ['--share', 'HEAD'], {
+      env: {
+        ...logger.env,
+        CODIFF_NODE_COMMAND: logger.commandPath,
+      },
+    });
+
+    expect(await logger.readArgs()).toEqual([resolve('bin/codiff.js'), '--share', 'HEAD']);
+  } finally {
+    await logger.cleanup();
+  }
+});
+
 test('parseArguments recognizes --help and -h flags', () => {
   expect(parseArguments(['--help']).help).toBe(true);
   expect(parseArguments(['-h']).help).toBe(true);
@@ -892,11 +918,14 @@ test('formatHelpText includes version and all flags', () => {
   expect(text).toContain('--version');
   expect(text).toContain('--commit');
   expect(text).toContain('--codex-session');
+  expect(text).toContain('--share');
   expect(text).toContain('--walkthrough');
   expect(text).toContain('--walkthrough-context');
   expect(text).toContain('-h');
   expect(text).toContain('-v');
   expect(text).toContain('-w');
+  expect(text).toContain('codiff --share');
+  expect(text).toContain('codiff --share HEAD');
 });
 
 test('formatHelpText styles titles and descriptions', () => {

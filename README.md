@@ -65,6 +65,14 @@ codiff -w
 codiff -w a1b2c3d
 ```
 
+When walkthrough sharing is available for your Git identity, generate and upload the same
+walkthrough without opening Codiff. The command prints the final URL:
+
+```bash
+codiff --share
+codiff --share HEAD
+```
+
 Show all available options:
 
 ```bash

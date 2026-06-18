@@ -151,7 +151,9 @@ brew upgrade --cask codiff
 The cask symlinks Codiff's packaged terminal helper as `codiff`. Running
 `codiff` from a repository opens that folder, and running
 `codiff /path/to/repo` opens the provided folder without keeping the terminal
-attached to the Electron process.
+attached to the Electron process. `codiff --share` runs the bundled CLI
+headlessly, waits for walkthrough generation and upload, and prints the final
+URL without opening an Electron window.
 
 Users who install the `.app` directly can run `Codiff > Install Terminal Helper`
 from the app menu. Codiff installs the helper into the first writable location

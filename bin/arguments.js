@@ -40,6 +40,11 @@ export const flagDefinitions = [
     type: 'string',
   },
   {
+    description: 'Generate and share a narrative walkthrough, then print its URL.',
+    name: 'share',
+    type: 'boolean',
+  },
+  {
     description: 'Show version number and exit.',
     name: 'version',
     short: 'v',
@@ -80,6 +85,8 @@ export const usageExamples = [
   { command: 'codiff mr 75', description: 'Review GitLab merge request !75.' },
   { command: 'codiff -w', description: 'Start with an LLM narrative walkthrough.' },
   { command: 'codiff -w a1b2c3d', description: 'Generate a narrative walkthrough for a commit.' },
+  { command: 'codiff --share', description: 'Share an LLM narrative walkthrough.' },
+  { command: 'codiff --share HEAD', description: 'Share a walkthrough for a commit.' },
 ];
 
 const parseArgsOptions = Object.fromEntries(
@@ -306,8 +313,9 @@ export const parseArguments = (args) => {
     ...(pullRequestProvider ? { pullRequestProvider } : {}),
     pullRequestUrl,
     requestedPath: resolve(requestedPath ?? process.cwd()),
+    ...(values.share === true ? { share: true } : {}),
     version: values.version === true,
-    walkthrough: values.walkthrough === true,
+    walkthrough: values.walkthrough === true || values.share === true,
     ...(values['walkthrough-guide'] === true ? { walkthroughGuide: true } : {}),
     ...(walkthroughContextPath ? { walkthroughContextPath: resolve(walkthroughContextPath) } : {}),
     ...(walkthroughFilePath ? { walkthroughFilePath: resolve(walkthroughFilePath) } : {}),

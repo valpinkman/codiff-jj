@@ -188,7 +188,30 @@ const readWalkthroughContext = (contextPath, codexSessionId) => {
   }
 };
 
+/**
+ * @param {WalkthroughContext | null | undefined} providedContext
+ * @param {WalkthroughContext | null | undefined} sessionContext
+ */
+const mergeWalkthroughContexts = (providedContext, sessionContext) => {
+  if (!providedContext) {
+    return sessionContext;
+  }
+
+  if (!sessionContext) {
+    return providedContext;
+  }
+
+  return {
+    ...sessionContext,
+    ...providedContext,
+    messages: sessionContext.messages,
+    risks: [...(sessionContext.risks || []), ...(providedContext.risks || [])],
+    source: sessionContext.source,
+  };
+};
+
 module.exports = {
+  mergeWalkthroughContexts,
   normalizeWalkthroughContext,
   readWalkthroughContext,
 };

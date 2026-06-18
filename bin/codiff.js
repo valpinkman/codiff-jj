@@ -11,6 +11,11 @@ import packageJson from '../package.json' with { type: 'json' };
 import { formatHelpText, parseArguments, resolvePullRequestUrl } from './arguments.js';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+const require = createRequire(import.meta.url);
+const {
+  generateAndShareWalkthrough,
+  shareWalkthroughFile,
+} = require('../electron/headless-walkthrough-share.cjs');
 
 // The renderer is the built dist/ by default. When Codiff's own Vite dev server
 // is running, use it instead so source edits hot-reload without a rebuild. The
@@ -64,10 +69,26 @@ const detectDevServer = (url) =>
     request.on('error', () => finish(false));
   });
 
+const openExternal = (url) =>
+  new Promise((resolveOpen, reject) => {
+    const command =
+      process.platform === 'darwin' ? 'open' : process.platform === 'win32' ? 'cmd' : 'xdg-open';
+    const args = process.platform === 'win32' ? ['/d', '/s', '/c', 'start', '""', url] : [url];
+    const child = spawn(command, args, {
+      detached: true,
+      stdio: 'ignore',
+      windowsHide: true,
+    });
+    child.once('error', reject);
+    child.once('spawn', () => {
+      child.unref();
+      resolveOpen();
+    });
+  });
+
 // Assemble the narrative walkthrough authoring guide: the prose, then the live
 // schema object serialized inline (single-sourced from the validator — no copy).
 const buildWalkthroughGuide = () => {
-  const require = createRequire(import.meta.url);
   const { narrativeWalkthroughSchema } = require(
     resolve(root, 'electron/narrative-walkthrough.cjs'),
   );
@@ -104,6 +125,7 @@ const run = async () => {
     pullRequestProvider,
     range,
     requestedPath,
+    share,
     walkthrough,
     walkthroughContextPath,
     walkthroughFilePath,
@@ -120,6 +142,56 @@ const run = async () => {
     } catch (error) {
       console.error(error instanceof Error ? error.message : String(error));
       process.exit(1);
+    }
+  }
+
+  if (share) {
+    const source = range
+      ? {
+          base: range.base,
+          head: range.head,
+          symmetric: range.symmetric,
+          type: 'range',
+        }
+      : pullRequestUrl
+        ? {
+            ...(pullRequestProvider ? { provider: pullRequestProvider } : {}),
+            type: 'pull-request',
+            url: pullRequestUrl,
+          }
+        : commitRef
+          ? { ref: commitRef, type: 'commit' }
+          : branchRef
+            ? { ref: branchRef, type: 'branch' }
+            : { type: 'working-tree' };
+
+    try {
+      const commonOptions = {
+        agent: agentBackend ?? undefined,
+        codiffVersion: packageJson.version,
+        openExternal,
+        repositoryPath: requestedPath,
+        serviceUrlOverride: process.env.CODIFF_SHARE_SERVER_URL,
+        source,
+      };
+      const url = walkthroughFilePath
+        ? await shareWalkthroughFile({
+            ...commonOptions,
+            walkthroughFile: walkthroughFilePath,
+          })
+        : await generateAndShareWalkthrough({
+            ...commonOptions,
+            claudeSessionId,
+            codexSessionId,
+            piSessionId,
+            walkthroughContextPath,
+          });
+      process.stdout.write(`${url}\n`);
+      return;
+    } catch (error) {
+      process.stderr.write(`${error instanceof Error ? error.message : String(error)}\n`);
+      process.exitCode = 1;
+      return;
     }
   }
 

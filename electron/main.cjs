@@ -76,6 +76,7 @@ const {
 const { uploadSharedWalkthrough } = require('./shared-walkthrough-upload.cjs');
 const { resolveWalkthroughShareTarget } = require('./walkthrough-sharing.cjs');
 const { createCloudflareAccessClient } = require('./cloudflare-access.cjs');
+const { mergeWalkthroughContexts } = require('./walkthrough-context.cjs');
 
 /**
  * @typedef {import('../core/config/types.ts').CodiffConfig} CodiffConfig
@@ -223,28 +224,6 @@ const getAgentOptions = (agent) => ({
     updateConfig({ settings: { ...config.settings, [agent.modelSettingKey]: fallbackModel } });
   },
 });
-
-/**
- * @param {import('../core/types.ts').WalkthroughContext | null | undefined} providedContext
- * @param {import('../core/types.ts').WalkthroughContext | null | undefined} sessionContext
- */
-const mergeWalkthroughContexts = (providedContext, sessionContext) => {
-  if (!providedContext) {
-    return sessionContext;
-  }
-
-  if (!sessionContext) {
-    return providedContext;
-  }
-
-  return {
-    ...sessionContext,
-    ...providedContext,
-    messages: sessionContext.messages,
-    risks: [...(sessionContext.risks || []), ...(providedContext.risks || [])],
-    source: sessionContext.source,
-  };
-};
 
 /** @param {CodiffTheme} theme */
 const updateTheme = (theme) => {
