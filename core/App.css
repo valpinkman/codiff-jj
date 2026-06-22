@@ -40,6 +40,7 @@
     --sidebar-border: rgb(17 17 17 / 0.1);
     --sidebar-ref: #c56e0e;
     --sidebar-text: rgb(17 17 17 / 0.76);
+    --sidebar-vibrancy-tint: rgb(255 255 255 / 0.34);
     --text: #111111;
     --tree-selection-bg: #c2e8ff50;
     --tree-selection-focus: #3d87f5;
@@ -64,6 +65,7 @@
       --sidebar-border: rgb(230 230 230 / 0.1);
       --sidebar-ref: #eb9a3d;
       --sidebar-text: rgb(230 230 230 / 0.78);
+      --sidebar-vibrancy-tint: rgb(255 255 255 / 0.06);
       --text: rgb(230 230 230);
       --tree-selection-bg: #a5a5a540;
       --tree-selection-focus: #3d87f5;
@@ -88,6 +90,7 @@
     --sidebar-border: rgb(17 17 17 / 0.1);
     --sidebar-ref: #c56e0e;
     --sidebar-text: rgb(17 17 17 / 0.76);
+    --sidebar-vibrancy-tint: rgb(255 255 255 / 0.34);
     --text: #111111;
     --tree-selection-bg: #c2e8ff50;
     --tree-selection-focus: #3d87f5;
@@ -111,6 +114,7 @@
     --sidebar-border: rgb(230 230 230 / 0.1);
     --sidebar-ref: #eb9a3d;
     --sidebar-text: rgb(230 230 230 / 0.78);
+    --sidebar-vibrancy-tint: rgb(255 255 255 / 0.06);
     --text: rgb(230 230 230);
     --tree-selection-bg: #a5a5a540;
     --tree-selection-focus: #3d87f5;
@@ -141,6 +145,10 @@
     font-family: var(--font-sans);
     margin: 0;
     overflow: hidden;
+  }
+
+  html[data-codiff-platform='darwin'] body {
+    background: transparent;
   }
 
   button {
@@ -195,6 +203,12 @@
   height: 40px;
   margin: 0;
   padding: 0 14px 0 78px;
+}
+
+html[data-codiff-platform='darwin'] .collapsed-sidebar-bar {
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+  background: var(--sidebar-vibrancy-tint);
 }
 
 .app-shell.window-fullscreen .collapsed-sidebar-bar {
@@ -515,6 +529,12 @@
   min-height: 0;
   overflow: hidden;
   position: relative;
+}
+
+html[data-codiff-platform='darwin'] .sidebar {
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+  background: var(--sidebar-vibrancy-tint);
 }
 
 .sidebar-header {
@@ -868,6 +888,7 @@
 }
 
 .review {
+  background: var(--app-bg);
   display: flex;
   min-height: 0;
   overflow: hidden;

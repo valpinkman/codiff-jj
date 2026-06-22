@@ -244,20 +244,6 @@ export function NarrativeSidebar({
                   </span>
                   <TocFileRows files={commitFiles} />
                 </button>
-                {onShareWalkthrough ? (
-                  <button
-                    aria-label={
-                      shareWalkthroughDisabled ? 'Sharing walkthrough' : 'Share walkthrough'
-                    }
-                    className="wt-toc-share-action"
-                    disabled={shareWalkthroughDisabled}
-                    onClick={onShareWalkthrough}
-                    title={shareWalkthroughDisabled ? 'Sharing walkthrough' : 'Share walkthrough'}
-                    type="button"
-                  >
-                    <ShareNetwork aria-hidden size={15} />
-                  </button>
-                ) : null}
               </span>
             </div>
           </div>

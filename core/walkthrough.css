@@ -21,6 +21,10 @@
 }
 
 .wt-toc-scroll {
+  --wt-toc-node-bg: color-mix(in srgb, var(--sidebar-text) 6%, transparent);
+  --wt-toc-node-size: 13px;
+  --wt-toc-node-top: 11px;
+  --wt-toc-rail: color-mix(in srgb, var(--sidebar-text) 30%, transparent);
   display: flex;
   flex: 1;
   flex-direction: column;
@@ -68,7 +72,7 @@
   border: 0;
   cursor: pointer;
   display: grid;
-  gap: 4px;
+  gap: 6px;
   grid-template-columns: 18px minmax(0, 1fr);
   padding: 0;
   text-align: left;
@@ -82,40 +86,46 @@
   justify-content: center;
   position: relative;
 }
-.wt-toc-rail::before {
-  background: color-mix(in srgb, var(--text) 9%, var(--code-bg));
-  bottom: 0;
+.wt-toc-rail::before,
+.wt-toc-rail::after {
+  background: var(--wt-toc-rail);
   content: '';
   left: 50%;
   position: absolute;
-  top: 0;
   transform: translateX(-50%);
   width: 2px;
 }
 .wt-toc-stop:first-child .wt-toc-rail::before {
-  top: 14px;
-}
-.wt-toc-stop:last-child .wt-toc-rail::before {
-  bottom: auto;
-  height: 14px;
-}
-.wt-toc-stop:only-child .wt-toc-rail::before {
   display: none;
 }
-.wt-toc-rail-commit::before {
+.wt-toc-rail::before {
+  height: var(--wt-toc-node-top);
+  top: 0;
+}
+.wt-toc-rail::after {
+  top: calc(var(--wt-toc-node-top) + var(--wt-toc-node-size));
+  bottom: 0;
+}
+.wt-toc-stop:last-child .wt-toc-rail::after,
+.wt-toc-stop:only-child .wt-toc-rail::before,
+.wt-toc-stop:only-child .wt-toc-rail::after {
+  display: none;
+}
+.wt-toc-rail-commit::before,
+.wt-toc-rail-commit::after {
   display: none;
 }
 .wt-toc-node {
   align-items: center;
-  background: var(--code-bg);
-  border: 2px solid var(--file-border);
+  background: var(--wt-toc-node-bg);
+  border: 2px solid var(--wt-toc-rail);
   border-radius: 50%;
   display: inline-flex;
-  height: 13px;
+  height: var(--wt-toc-node-size);
   justify-content: center;
-  margin-top: 8px;
+  margin-top: var(--wt-toc-node-top);
   position: relative;
-  width: 13px;
+  width: var(--wt-toc-node-size);
   z-index: 1;
 }
 .wt-toc-node.done {
@@ -134,9 +144,11 @@
 }
 
 .wt-toc-main {
-  border-radius: 24px;
+  border-radius: 16px;
   corner-shape: squircle;
   margin: 4px;
+  min-width: 0;
+  overflow: hidden;
   padding: 4px 8px;
 }
 .wt-toc-stop:hover .wt-toc-main {
@@ -150,6 +162,7 @@
   align-items: baseline;
   display: flex;
   gap: 4px;
+  min-width: 0;
 }
 .wt-toc-num {
   color: var(--muted);
@@ -159,6 +172,8 @@
 .wt-toc-title {
   color: var(--text);
   font: 600 13px/1.35 var(--font-sans);
+  min-width: 0;
+  overflow-wrap: anywhere;
   text-wrap: pretty;
 }
 .wt-toc-stop.visited .wt-toc-title,
@@ -232,7 +247,6 @@
   padding: 0;
   width: 30px;
 }
-.wt-toc-commit-action:hover,
 .wt-toc-share-action:hover:not(:disabled) {
   background: color-mix(in srgb, var(--text) 7%, transparent);
 }

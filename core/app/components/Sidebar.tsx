@@ -167,12 +167,25 @@ export function Sidebar({
     sort: fileTreeSort,
     unsafeCSS: `
       :host {
+        --trees-bg-override: transparent;
+        --trees-bg-muted-override: var(--hover-wash);
+        --trees-border-color-override: var(--sidebar-border);
+        --trees-fg-muted-override: var(--muted);
+        --trees-fg-override: var(--sidebar-text);
+        --trees-focus-ring-color-override: var(--tree-selection-focus);
         --trees-padding-inline-override: 4px;
+        --trees-search-bg-override: rgb(127 127 127 / 0.1);
+        --trees-search-fg-override: var(--sidebar-text);
+        --trees-selected-bg-override: color-mix(in srgb, var(--tree-selection-bg) 46%, transparent);
+        --trees-selected-fg-override: var(--sidebar-text);
+        --trees-selected-focused-border-color-override: color-mix(in srgb, var(--tree-selection-focus) 42%, transparent);
+        --truncate-marker-background-color: transparent;
         color: var(--sidebar-text);
         font: 13px/1.35 var(--font-sans);
       }
 
       button[data-type='item'] {
+        background-color: transparent;
         border-radius: 14px;
         corner-shape: squircle;
       }

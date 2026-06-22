@@ -2,6 +2,16 @@
 
 const { contextBridge, ipcRenderer } = require('electron');
 
+const applyPlatformAttribute = () => {
+  document.documentElement?.setAttribute('data-codiff-platform', process.platform);
+};
+
+if (document.documentElement) {
+  applyPlatformAttribute();
+} else {
+  window.addEventListener('DOMContentLoaded', applyPlatformAttribute, { once: true });
+}
+
 /** @type {Window['codiff']} */
 const codiff = {
   askReviewAssistant: (request) => ipcRenderer.invoke('codiff:askReviewAssistant', request),

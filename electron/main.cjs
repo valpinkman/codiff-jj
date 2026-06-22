@@ -678,16 +678,28 @@ const createWindow = (
 
   const display = screen.getPrimaryDisplay();
   const { height, width } = display.workAreaSize;
+  const useMacVibrancy = process.platform === 'darwin';
   const window = new BrowserWindow({
     autoHideMenuBar: process.platform !== 'linux',
-    backgroundColor: nativeTheme.shouldUseDarkColors ? '#141414' : '#ffffff',
+    backgroundColor: useMacVibrancy
+      ? '#00000000'
+      : nativeTheme.shouldUseDarkColors
+        ? '#141414'
+        : '#ffffff',
     height: validatedState?.height ?? Math.max(720, Math.floor(height * 0.86)),
     minHeight: 520,
     minWidth: 880,
     show: false,
     title: `Codiff - ${repositoryPath}`,
-    titleBarStyle: process.platform === 'darwin' ? 'hiddenInset' : 'default',
-    ...(process.platform === 'darwin' ? { trafficLightPosition: { x: 12, y: 12 } } : {}),
+    titleBarStyle: useMacVibrancy ? 'hiddenInset' : 'default',
+    ...(useMacVibrancy
+      ? {
+          trafficLightPosition: { x: 12, y: 12 },
+          transparent: true,
+          vibrancy: 'under-window',
+          visualEffectState: 'followWindow',
+        }
+      : {}),
     webPreferences: {
       contextIsolation: true,
       nodeIntegration: false,
