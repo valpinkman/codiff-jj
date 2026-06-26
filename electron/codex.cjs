@@ -29,6 +29,7 @@ const CODEX_NOT_FOUND_MESSAGE =
  *   model?: string;
  *   onModelFallback?: (fallbackModel: string, originalModel: string) => Promise<void> | void;
  *   reasoningEffort?: 'low' | 'medium' | 'high';
+ *   timeoutMs?: number;
  * }} CodexOptions
  */
 /**
@@ -216,6 +217,7 @@ const runCodex = async (
 ) => {
   const model = normalizeOpenAIModel(options.model);
   const fallbackModel = normalizeOpenAIModel(options.fallbackModel || FALLBACK_OPENAI_MODEL);
+  const timeoutMs = options.timeoutMs ?? CODEX_TIMEOUT_MS;
   const reasoningEffort = normalizeEnum(
     options.reasoningEffort,
     CODEX_REASONING_EFFORTS,
@@ -269,7 +271,7 @@ const runCodex = async (
             child.kill('SIGTERM');
             reject(new Error(timeoutMessage));
           }
-        }, CODEX_TIMEOUT_MS);
+        }, timeoutMs);
 
         child.stdout.on('data', (chunk) => {
           stdout += chunk.toString();
@@ -340,6 +342,7 @@ const runCodex = async (
 module.exports = {
   CODEX_NOT_FOUND_CODE,
   CODEX_NOT_FOUND_MESSAGE,
+  CODEX_TIMEOUT_MS,
   cleanText,
   DEFAULT_OPENAI_MODEL,
   FALLBACK_OPENAI_MODEL,

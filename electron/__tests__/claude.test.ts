@@ -26,7 +26,7 @@ const {
     schema: unknown,
     outputName?: string,
     timeoutMessage?: string,
-    options?: { model?: string },
+    options?: { model?: string; timeoutMs?: number },
   ) => Promise<string>;
 };
 
@@ -101,6 +101,35 @@ process.stdin.on('end', () => {
     expect(args).toContain('--add-dir');
     expect(args).toContain(directory);
     expect(args).toContain('--no-session-persistence');
+  } finally {
+    if (previousClaudePath == null) {
+      delete process.env.CODIFF_CLAUDE_PATH;
+    } else {
+      process.env.CODIFF_CLAUDE_PATH = previousClaudePath;
+    }
+    await rm(directory, { force: true, recursive: true });
+  }
+});
+
+test('supports per-call Claude Code timeouts', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'codiff-claude-timeout-'));
+  const fakeClaudePath = join(directory, 'claude');
+  const previousClaudePath = process.env.CODIFF_CLAUDE_PATH;
+
+  try {
+    await writeFile(
+      fakeClaudePath,
+      `#!/usr/bin/env node
+process.stdin.resume();
+setInterval(() => {}, 1_000);
+`,
+    );
+    await chmod(fakeClaudePath, 0o755);
+    process.env.CODIFF_CLAUDE_PATH = fakeClaudePath;
+
+    await expect(
+      runClaude(directory, 'prompt', {}, 'walkthrough.json', 'Timed out.', { timeoutMs: 10 }),
+    ).rejects.toThrow('Timed out.');
   } finally {
     if (previousClaudePath == null) {
       delete process.env.CODIFF_CLAUDE_PATH;

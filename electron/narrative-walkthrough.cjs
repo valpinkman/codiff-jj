@@ -49,6 +49,12 @@ const MAX_TOTAL_PATCH_CHARS = 60_000;
 const MAX_LARGE_TOTAL_PATCH_CHARS = 35_000;
 const MAX_SECTION_PATCH_CHARS = 2_500;
 const MAX_LARGE_SECTION_PATCH_CHARS = 700;
+const BASE_WALKTHROUGH_TIMEOUT_MS = 90_000;
+const MAX_WALKTHROUGH_TIMEOUT_MS = 300_000;
+const INCLUDED_WALKTHROUGH_FILES = 8;
+const INCLUDED_WALKTHROUGH_HUNKS = 12;
+const TIMEOUT_MS_PER_EXTRA_FILE = 1_000;
+const TIMEOUT_MS_PER_EXTRA_HUNK = 2_000;
 
 /** @param {unknown} value @param {string} [fallback] */
 const cleanRich = (value, fallback = '') => {
@@ -607,9 +613,10 @@ Use these instructions to customize language, tone, and review detail. If they c
     : '';
 };
 
-const buildWalkthroughSizingGuidance = (state) => {
-  const fileCount = state.files.length;
-  const hunkCount = state.files.reduce(
+/** @param {RepositoryState} state */
+const getWalkthroughSize = (state) => ({
+  fileCount: state.files.length,
+  hunkCount: state.files.reduce(
     (total, file) =>
       total +
       (file.sections || []).reduce(
@@ -617,7 +624,28 @@ const buildWalkthroughSizingGuidance = (state) => {
         0,
       ),
     0,
-  );
+  ),
+});
+
+/**
+ * Small walkthroughs retain the normal agent timeout. Larger digests get more
+ * time for hunk classification and structured output, capped at five minutes.
+ *
+ * @param {RepositoryState} state
+ * @param {number} [minimumMs]
+ */
+const getNarrativeWalkthroughTimeoutMs = (state, minimumMs = BASE_WALKTHROUGH_TIMEOUT_MS) => {
+  const { fileCount, hunkCount } = getWalkthroughSize(state);
+  const estimatedMs =
+    BASE_WALKTHROUGH_TIMEOUT_MS +
+    Math.max(0, fileCount - INCLUDED_WALKTHROUGH_FILES) * TIMEOUT_MS_PER_EXTRA_FILE +
+    Math.max(0, hunkCount - INCLUDED_WALKTHROUGH_HUNKS) * TIMEOUT_MS_PER_EXTRA_HUNK;
+
+  return Math.min(MAX_WALKTHROUGH_TIMEOUT_MS, Math.max(minimumMs, estimatedMs));
+};
+
+const buildWalkthroughSizingGuidance = (state) => {
+  const { fileCount, hunkCount } = getWalkthroughSize(state);
   const targetStops =
     fileCount <= 2
       ? hunkCount <= 4
@@ -682,13 +710,16 @@ ${JSON.stringify(buildPromptInput(state), null, 2)}
 
 const readNarrativeWalkthrough = async (state, agent, agentOptions, context, customPrompt) => {
   try {
+    const prompt = buildNarrativeWalkthroughPrompt(state, context, agent.label, customPrompt);
+    const timeoutMs = getNarrativeWalkthroughTimeoutMs(state, agent.defaultTimeoutMs);
+    const { fileCount, hunkCount } = getWalkthroughSize(state);
     const response = await agent.run(
       state.root,
-      buildNarrativeWalkthroughPrompt(state, context, agent.label, customPrompt),
+      prompt,
       narrativeWalkthroughResponseSchema,
       'walkthrough.json',
-      `${agent.label} walkthrough timed out.`,
-      agentOptions,
+      `${agent.label} walkthrough timed out after ${Math.ceil(timeoutMs / 1_000)} seconds while processing ${fileCount} files and ${hunkCount} reviewable hunks.`,
+      { ...agentOptions, timeoutMs },
     );
     const parsed = parseJSONMessage(response);
     const walkthrough = normalizeNarrativeWalkthrough(parsed, state.files, {
@@ -724,6 +755,7 @@ const readNarrativeWalkthrough = async (state, agent, agentOptions, context, cus
 
 module.exports = {
   buildNarrativeWalkthroughPrompt,
+  getNarrativeWalkthroughTimeoutMs,
   narrativeWalkthroughResponseSchema,
   narrativeWalkthroughSchema,
   normalizeNarrativeWalkthrough,

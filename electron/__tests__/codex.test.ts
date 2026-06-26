@@ -30,7 +30,11 @@ const {
     schema: unknown,
     outputName?: string,
     timeoutMessage?: string,
-    options?: { model?: string; reasoningEffort?: 'low' | 'medium' | 'high' },
+    options?: {
+      model?: string;
+      reasoningEffort?: 'low' | 'medium' | 'high';
+      timeoutMs?: number;
+    },
   ) => Promise<string>;
 };
 
@@ -202,6 +206,35 @@ exit 1
 
     const args = (await readFile(argsPath, 'utf8')).trim().split('\n');
     expect(args).toContain('model_reasoning_effort="low"');
+  } finally {
+    if (previousCodexPath == null) {
+      delete process.env.CODIFF_CODEX_PATH;
+    } else {
+      process.env.CODIFF_CODEX_PATH = previousCodexPath;
+    }
+    await rm(directory, { force: true, recursive: true });
+  }
+});
+
+test('supports per-call Codex timeouts', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'codiff-codex-timeout-'));
+  const fakeCodexPath = join(directory, 'codex');
+  const previousCodexPath = process.env.CODIFF_CODEX_PATH;
+
+  try {
+    await writeFile(
+      fakeCodexPath,
+      `#!/usr/bin/env node
+process.stdin.resume();
+setInterval(() => {}, 1_000);
+`,
+    );
+    await chmod(fakeCodexPath, 0o755);
+    process.env.CODIFF_CODEX_PATH = fakeCodexPath;
+
+    await expect(
+      runCodex('/repo', 'prompt', {}, 'walkthrough.json', 'Timed out.', { timeoutMs: 10 }),
+    ).rejects.toThrow('Timed out.');
   } finally {
     if (previousCodexPath == null) {
       delete process.env.CODIFF_CODEX_PATH;

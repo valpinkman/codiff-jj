@@ -27,6 +27,7 @@ const PI_NOT_FOUND_MESSAGE =
  *   model?: string;
  *   onModelFallback?: (fallbackModel: string, originalModel: string) => Promise<void> | void;
  *   onPartialText?: (delta: string) => void;
+ *   timeoutMs?: number;
  * }} PiOptions
  */
 /**
@@ -121,6 +122,7 @@ const runPi = async (
   options = {},
 ) => {
   const model = normalizePiModel(options.model);
+  const timeoutMs = options.timeoutMs ?? PI_TIMEOUT_MS;
   const effectivePrompt = `${prompt}${buildSchemaReminder(schema)}`;
 
   return await /** @type {Promise<string>} */ (
@@ -154,7 +156,7 @@ const runPi = async (
           child.kill('SIGTERM');
           reject(new Error(timeoutMessage));
         }
-      }, PI_TIMEOUT_MS);
+      }, timeoutMs);
 
       child.stdout.on('data', (chunk) => {
         const text = chunk.toString();

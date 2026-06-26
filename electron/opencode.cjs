@@ -149,6 +149,7 @@ const normalizeOpenCodeOutput = (output, schema) =>
  *   model?: string;
  *   onModelFallback?: (fallbackModel: string, originalModel: string) => Promise<void> | void;
  *   onPartialText?: (delta: string) => void;
+ *   timeoutMs?: number;
  * }} [options]
  */
 const runOpenCode = async (
@@ -161,6 +162,7 @@ const runOpenCode = async (
 ) => {
   const model = normalizeOpenCodeModel(options.model);
   const fallbackModel = normalizeOpenCodeModel(options.fallbackModel || FALLBACK_OPENCODE_MODEL);
+  const timeoutMs = options.timeoutMs ?? OPENCODE_TIMEOUT_MS;
   const effectivePrompt = `${prompt}${buildSchemaReminder(schema)}`;
 
   /** @param {string} openCodeModel */
@@ -200,7 +202,7 @@ const runOpenCode = async (
             child.kill('SIGTERM');
             reject(new Error(timeoutMessage));
           }
-        }, OPENCODE_TIMEOUT_MS);
+        }, timeoutMs);
 
         child.stdout.on('data', (chunk) => {
           stdout += chunk.toString();

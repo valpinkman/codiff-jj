@@ -5,6 +5,7 @@ import narrativeSchemaJson from '../../core/walkthrough/narrative-walkthrough.sc
 const require = createRequire(import.meta.url);
 const {
   buildNarrativeWalkthroughPrompt,
+  getNarrativeWalkthroughTimeoutMs,
   narrativeWalkthroughResponseSchema,
   narrativeWalkthroughSchema,
   normalizeNarrativeWalkthrough,
@@ -15,6 +16,7 @@ const {
     agentLabel?: string,
     customPrompt?: string,
   ) => string;
+  getNarrativeWalkthroughTimeoutMs: (state: any, minimumMs?: number) => number;
   narrativeWalkthroughResponseSchema: {
     properties: Record<string, any>;
     required: ReadonlyArray<string>;
@@ -225,6 +227,36 @@ test('prompts small walkthroughs to group similar hunks into compact chapters', 
   expect(prompt).toContain('Use 1 story chapter');
   expect(prompt).toContain('For one- or two-file diffs, prefer one chapter');
   expect(prompt).toContain('Similar same-file hunks should usually be one stop');
+});
+
+test('scales walkthrough timeouts with reviewable files and hunks', () => {
+  const createState = (count: number) => ({
+    branch: 'main',
+    files: Array.from({ length: count }, (_, index) => ({
+      path: `file-${index}.ts`,
+      sections: [
+        {
+          id: `file-${index}.ts:staged`,
+          kind: 'staged',
+          patch: `@@ -1 +1 @@\n-old ${index}\n+new ${index}\n`,
+        },
+      ],
+      status: 'modified',
+    })),
+    generatedAt: 1,
+    root: '/repo',
+    source: { type: 'working-tree' },
+  });
+
+  const smallTimeout = getNarrativeWalkthroughTimeoutMs(createState(4));
+  const mediumTimeout = getNarrativeWalkthroughTimeoutMs(createState(32));
+  const largeTimeout = getNarrativeWalkthroughTimeoutMs(createState(100));
+
+  expect(smallTimeout).toBe(90_000);
+  expect(mediumTimeout).toBeGreaterThan(smallTimeout);
+  expect(mediumTimeout).toBeLessThan(300_000);
+  expect(largeTimeout).toBe(300_000);
+  expect(getNarrativeWalkthroughTimeoutMs(createState(4), 180_000)).toBe(180_000);
 });
 
 test('prompts generated walkthroughs with custom user guidance without replacing core constraints', () => {

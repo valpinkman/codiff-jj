@@ -16,12 +16,14 @@ const { readPiSessionContext } = require('./pi-session-context.cjs');
  *   model?: string;
  *   onModelFallback?: (fallbackModel: string, originalModel: string) => Promise<void> | void;
  *   onPartialText?: (delta: string) => void;
+ *   timeoutMs?: number;
  * }} AgentOptions
  * @typedef {{
  *   id: 'codex' | 'claude' | 'opencode' | 'pi';
  *   label: string;
  *   cliName: string;
  *   cliPathEnvVar: string;
+ *   defaultTimeoutMs: number;
  *   models: ReadonlyArray<{id: string; label: string}>;
  *   defaultModel: string;
  *   fallbackModel: string;
@@ -70,6 +72,7 @@ const createCodexAgent = () => ({
   label: 'Codex',
   cliName: 'codex',
   cliPathEnvVar: 'CODIFF_CODEX_PATH',
+  defaultTimeoutMs: codex.CODEX_TIMEOUT_MS,
   models: codex.OPENAI_MODELS,
   defaultModel: codex.DEFAULT_OPENAI_MODEL,
   fallbackModel: codex.FALLBACK_OPENAI_MODEL,
@@ -89,6 +92,7 @@ const createClaudeAgent = () => ({
   label: 'Claude Code',
   cliName: 'claude',
   cliPathEnvVar: 'CODIFF_CLAUDE_PATH',
+  defaultTimeoutMs: claude.CLAUDE_TIMEOUT_MS,
   models: claude.CLAUDE_MODELS,
   defaultModel: claude.DEFAULT_CLAUDE_MODEL,
   fallbackModel: claude.FALLBACK_CLAUDE_MODEL,
@@ -108,6 +112,7 @@ const createOpenCodeAgent = () => ({
   label: 'OpenCode',
   cliName: 'opencode',
   cliPathEnvVar: 'CODIFF_OPENCODE_PATH',
+  defaultTimeoutMs: opencode.OPENCODE_TIMEOUT_MS,
   models: opencode.OPENCODE_MODELS,
   defaultModel: opencode.DEFAULT_OPENCODE_MODEL,
   fallbackModel: opencode.FALLBACK_OPENCODE_MODEL,
@@ -128,6 +133,7 @@ const createPiAgent = () => ({
   label: 'Pi',
   cliName: 'pi',
   cliPathEnvVar: 'CODIFF_PI_PATH',
+  defaultTimeoutMs: pi.PI_TIMEOUT_MS,
   models: pi.PI_MODELS,
   defaultModel: pi.DEFAULT_PI_MODEL,
   fallbackModel: pi.FALLBACK_PI_MODEL,

@@ -25,6 +25,7 @@ const CLAUDE_NOT_LOGGED_IN_MESSAGE =
  *   fallbackModel?: string;
  *   model?: string;
  *   onModelFallback?: (fallbackModel: string, originalModel: string) => Promise<void> | void;
+ *   timeoutMs?: number;
  * }} ClaudeOptions
  */
 /**
@@ -150,6 +151,7 @@ const runClaude = async (
 ) => {
   const model = normalizeClaudeModel(options.model);
   const fallbackModel = normalizeClaudeModel(options.fallbackModel || FALLBACK_CLAUDE_MODEL);
+  const timeoutMs = options.timeoutMs ?? CLAUDE_TIMEOUT_MS;
 
   /** @param {string} claudeModel @returns {Promise<string>} */
   const invokeClaude = async (claudeModel) =>
@@ -190,7 +192,7 @@ const runClaude = async (
             child.kill('SIGTERM');
             reject(new Error(timeoutMessage));
           }
-        }, CLAUDE_TIMEOUT_MS);
+        }, timeoutMs);
 
         child.stdout.on('data', (chunk) => {
           stdout += chunk.toString();
@@ -276,6 +278,7 @@ module.exports = {
   CLAUDE_MODELS,
   CLAUDE_NOT_FOUND_CODE,
   CLAUDE_NOT_FOUND_MESSAGE,
+  CLAUDE_TIMEOUT_MS,
   DEFAULT_CLAUDE_MODEL,
   FALLBACK_CLAUDE_MODEL,
   getClaudeCommand,
