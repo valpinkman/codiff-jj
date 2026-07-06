@@ -1,12 +1,19 @@
 // @ts-check
 
-const { fileSort, getGravatarHash, git, normalizeStatus } = require('./common.cjs');
+const {
+  fileSort,
+  getGravatarHash,
+  git,
+  normalizeStatus,
+  resolveRepositoryRoot,
+} = require('./common.cjs');
 const {
   readComparisonImageContent,
   readComparisonSectionContent,
   readComparisonState,
 } = require('./comparison.cjs');
 const { readCommitMetadataForCommit } = require('./commit-metadata.cjs');
+const { getJujutsuRoot, listJujutsuBookmarks, resolveJujutsuRef } = require('./jj.cjs');
 
 /**
  * @typedef {import('../../core/types.ts').DiffImageContentResult} DiffImageContentResult
@@ -91,6 +98,17 @@ const readCommitNameStatus = async (repoRoot, commit, firstParent, options = {})
  * @param {string} ref
  */
 const resolveRangeEndpoint = async (repoRoot, ref) => {
+  const jujutsuRoot = getJujutsuRoot(repoRoot);
+  if (jujutsuRoot) {
+    try {
+      // Change IDs, bookmarks, `@`, and other revsets resolve through jj;
+      // `HEAD` maps onto the working-copy commit or its parent.
+      return await resolveJujutsuRef(jujutsuRoot, ref);
+    } catch {
+      // Fall back to Git's ref parser for refs jj does not recognize.
+    }
+  }
+
   if (ref !== 'HEAD') {
     try {
       return (await git(repoRoot, ['rev-parse', '--verify', `refs/heads/${ref}^{commit}`])).trim();
@@ -173,10 +191,11 @@ const getBranchSuggestion = async (repoRoot, ref) => {
     'refs/heads',
     'refs/remotes',
   ]);
+  const jujutsuRoot = getJujutsuRoot(repoRoot);
+  const bookmarks = jujutsuRoot ? await listJujutsuBookmarks(jujutsuRoot) : [];
   const candidates = [
     ...new Set(
-      raw
-        .split('\n')
+      [...raw.split('\n'), ...bookmarks]
         .map((branch) => branch.trim())
         .filter((branch) => branch && !branch.endsWith('/HEAD') && branch !== ref),
     ),
@@ -243,9 +262,10 @@ const resolveBranchComparison = async (repoRoot, source) => {
  */
 const resolveComparisonSource = async (repoRoot, source) => {
   if (source.type === 'commit') {
-    const commit = (
-      await git(repoRoot, ['rev-parse', '--verify', `${source.ref}^{commit}`])
-    ).trim();
+    const jujutsuRoot = getJujutsuRoot(repoRoot);
+    const commit =
+      (jujutsuRoot && (await resolveJujutsuRef(jujutsuRoot, source.ref).catch(() => null))) ||
+      (await git(repoRoot, ['rev-parse', '--verify', `${source.ref}^{commit}`])).trim();
     const [firstParent] = await readCommitParents(repoRoot, commit);
     return {
       newRef: commit,
@@ -282,7 +302,7 @@ const resolveComparisonSource = async (repoRoot, source) => {
 
 /** @param {string} launchPath @param {ComparisonSource} source @returns {Promise<ResolvedComparison>} */
 const readResolvedComparison = async (launchPath, source) => {
-  const repoRoot = (await git(launchPath, ['rev-parse', '--show-toplevel'])).trim();
+  const repoRoot = await resolveRepositoryRoot(launchPath);
   const comparison = await resolveComparisonSource(repoRoot, source);
   const status = await readCommitNameStatus(repoRoot, comparison.newRef, comparison.oldRef, {
     sort: false,
@@ -467,9 +487,42 @@ const readBranchSectionContent = (launchPath, input, requestedPath, options = {}
 const readBranchImageContent = (launchPath, input, requestedPath) =>
   readComparisonSourceImageContent(launchPath, normalizeBranchSourceInput(input), requestedPath);
 
+/**
+ * Rewrite a history ref (`main`, `main..HEAD`, `a...b`) into concrete commit
+ * hashes so Git's log can walk it even when the endpoints are jj bookmarks,
+ * change IDs, or the mapped `HEAD`.
+ *
+ * @param {string} jujutsuRoot
+ * @param {string} ref
+ */
+const translateJujutsuHistoryRef = async (jujutsuRoot, ref) => {
+  const symmetric = ref.includes('...');
+  const [base, head] = symmetric ? ref.split('...') : ref.split('..');
+  if (head == null) {
+    return resolveJujutsuRef(jujutsuRoot, ref);
+  }
+
+  if (!base || !head) {
+    return ref;
+  }
+
+  return `${await resolveJujutsuRef(jujutsuRoot, base)}${
+    symmetric ? '...' : '..'
+  }${await resolveJujutsuRef(jujutsuRoot, head)}`;
+};
+
 /** @param {string} launchPath @param {number} [limit] @param {string} [ref] */
 const listRepositoryHistory = async (launchPath, limit = 200, ref = 'HEAD') => {
-  const repoRoot = (await git(launchPath, ['rev-parse', '--show-toplevel'])).trim();
+  const repoRoot = await resolveRepositoryRoot(launchPath);
+  const jujutsuRoot = getJujutsuRoot(repoRoot);
+  if (jujutsuRoot) {
+    try {
+      ref = await translateJujutsuHistoryRef(jujutsuRoot, ref);
+    } catch {
+      // Unresolvable refs fall through to Git's validation below.
+    }
+  }
+
   try {
     if (ref.includes('..')) {
       await git(repoRoot, ['rev-list', '--max-count=1', ref]);
@@ -507,7 +560,9 @@ const listRepositoryHistory = async (launchPath, limit = 200, ref = 'HEAD') => {
       gravatarUrl,
       parents: parents ? parents.split(' ') : [],
       ref,
-      subject,
+      // jj working-copy commits often have no description yet; mirror jj's
+      // own placeholder instead of rendering an empty row.
+      subject: subject || (jujutsuRoot ? '(no description set)' : subject),
     });
   }
 

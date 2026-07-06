@@ -1,6 +1,7 @@
 // @ts-check
 
 const { gitOrEmpty } = require('./git-state/common.cjs');
+const { getJujutsuRoot, resolveJujutsuRef } = require('./git-state/jj.cjs');
 
 /**
  * @typedef {{ kind?: string; type?: string }} WalkthroughSource
@@ -114,11 +115,16 @@ const diagnoseWalkthroughMismatch = async ({ repositoryRoot, input, hasFiles }) 
 
   // The newest commit touching any anchored path. Empty when those paths have
   // never been committed (e.g. untracked files that were since discarded).
+  // jj repositories may not expose a Git `HEAD` (internal store), so start the
+  // walk from the resolved working-copy head instead of the implicit default.
+  const jujutsuRoot = getJujutsuRoot(repositoryRoot);
+  const head = jujutsuRoot ? await resolveJujutsuRef(jujutsuRoot, 'HEAD').catch(() => null) : null;
   const log = await gitOrEmpty(repositoryRoot, [
     'log',
     '-n',
     '1',
     '--pretty=format:%h%x1f%s%x1f%cI',
+    ...(head ? [head] : []),
     '--',
     ...paths,
   ]);

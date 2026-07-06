@@ -139,17 +139,32 @@ is_explicit_path_arg() {
   return 1
 }
 
+is_jj_repository() {
+  command -v jj >/dev/null 2>&1 && jj --repository "$1" --ignore-working-copy root >/dev/null 2>&1
+}
+
 is_git_branch_ref() {
+  if is_jj_repository "$1" &&
+    jj --repository "$1" --ignore-working-copy --color never --no-pager bookmark list --all-remotes -T 'if(remote, name ++ "@" ++ remote, name) ++ "\n"' 2>/dev/null |
+      grep -Fxq "$2"; then
+    return 0
+  fi
+
   git -C "$1" show-ref --verify --quiet "refs/heads/$2" 2>/dev/null ||
     git -C "$1" show-ref --verify --quiet "refs/remotes/$2" 2>/dev/null
 }
 
 is_git_commit_ref() {
+  if is_jj_repository "$1" &&
+    jj --repository "$1" --ignore-working-copy --color never --no-pager log --no-graph -r "$2" -n 1 -T commit_id >/dev/null 2>&1; then
+    return 0
+  fi
+
   git -C "$1" rev-parse --verify "$2^{commit}" >/dev/null 2>&1
 }
 
 is_git_repository() {
-  git -C "$1" rev-parse --show-toplevel >/dev/null 2>&1
+  is_jj_repository "$1" || git -C "$1" rev-parse --show-toplevel >/dev/null 2>&1
 }
 
 for arg in "$@"; do

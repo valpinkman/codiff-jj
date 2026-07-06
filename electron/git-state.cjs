@@ -1,6 +1,7 @@
 // @ts-check
 
 const { gitOrEmpty, parseStatus, validateRepositoryPath } = require('./git-state/common.cjs');
+const { getJujutsuRoot, readJujutsuBranchLabel, resolveJujutsuRef } = require('./git-state/jj.cjs');
 const {
   listRepositoryHistory,
   readBranchImageContent,
@@ -78,7 +79,10 @@ const readRepositoryState = async (launchPath, source = { type: 'working-tree' }
                 eagerContents: false,
                 showWhitespace: options.showWhitespace,
               });
-  const branch = (await gitOrEmpty(state.root, ['symbolic-ref', '--short', 'HEAD'])).trim() || null;
+  const jujutsuRoot = getJujutsuRoot(state.root);
+  const branch = jujutsuRoot
+    ? await readJujutsuBranchLabel(jujutsuRoot)
+    : (await gitOrEmpty(state.root, ['symbolic-ref', '--short', 'HEAD'])).trim() || null;
   return { ...state, branch };
 };
 
@@ -97,7 +101,10 @@ const readWalkthroughRepositoryState = async (launchPath, source, options = {}) 
     return state;
   }
 
-  const head = (await gitOrEmpty(state.root, ['rev-parse', '--verify', 'HEAD'])).trim();
+  const jujutsuRoot = getJujutsuRoot(state.root);
+  const head = jujutsuRoot
+    ? await resolveJujutsuRef(jujutsuRoot, 'HEAD').catch(() => '')
+    : (await gitOrEmpty(state.root, ['rev-parse', '--verify', 'HEAD'])).trim();
   return head ? readRepositoryState(launchPath, { ref: 'HEAD', type: 'commit' }, options) : state;
 };
 

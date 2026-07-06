@@ -8,6 +8,7 @@ const {
   gitOrEmpty,
   readGitFile,
   readGitImageFile,
+  resolveRepositoryRoot,
   validateRepositoryPath,
 } = require('./common.cjs');
 const {
@@ -316,7 +317,7 @@ const resolveMergeRequestContentRefs = async (repoRoot, mergeRequest, metadata) 
 
 /** @param {string} launchPath @param {Extract<ReviewSource, {type: 'pull-request'}>} source */
 const readMergeRequestState = async (launchPath, source) => {
-  const repoRoot = (await git(launchPath, ['rev-parse', '--show-toplevel'])).trim();
+  const repoRoot = await resolveRepositoryRoot(launchPath);
   const mergeRequest = parseGitLabMergeRequestUrl(source.url);
   selectMergeRequestRemote(repoRoot, mergeRequest);
   const [metadata, diffs, reviewComments] = await Promise.all([
@@ -415,7 +416,7 @@ const readRepositoryCommits = async (repoRoot, mergeRequest, ref, limit) => {
 
 /** @param {string} launchPath @param {Extract<ReviewSource, {type: 'pull-request'}>} source @param {number} [limit] */
 const listMergeRequestHistory = async (launchPath, source, limit = 200) => {
-  const repoRoot = (await git(launchPath, ['rev-parse', '--show-toplevel'])).trim();
+  const repoRoot = await resolveRepositoryRoot(launchPath);
   const mergeRequest = parseGitLabMergeRequestUrl(source.url);
   const metadata = await readMergeRequestMetadata(repoRoot, mergeRequest);
   const commits = parseGlabJsonPages(
@@ -521,7 +522,7 @@ const getGitLabReviewQuickAction = (event) =>
 
 /** @param {string} launchPath @param {any} request */
 const submitMergeRequestComment = async (launchPath, request) => {
-  const repoRoot = (await git(launchPath, ['rev-parse', '--show-toplevel'])).trim();
+  const repoRoot = await resolveRepositoryRoot(launchPath);
   const mergeRequest = parseGitLabMergeRequestUrl(request.source.url);
   selectMergeRequestRemote(repoRoot, mergeRequest);
   const metadata = await readMergeRequestMetadata(repoRoot, mergeRequest);
@@ -547,7 +548,7 @@ const submitMergeRequestComment = async (launchPath, request) => {
 
 /** @param {string} launchPath @param {any} request */
 const submitMergeRequestReview = async (launchPath, request) => {
-  const repoRoot = (await git(launchPath, ['rev-parse', '--show-toplevel'])).trim();
+  const repoRoot = await resolveRepositoryRoot(launchPath);
   const mergeRequest = parseGitLabMergeRequestUrl(request.source.url);
   selectMergeRequestRemote(repoRoot, mergeRequest);
   const metadata = await readMergeRequestMetadata(repoRoot, mergeRequest);
@@ -579,7 +580,7 @@ const submitMergeRequestReview = async (launchPath, request) => {
 /** @param {string} launchPath @param {Extract<ReviewSource, {type: 'pull-request'}>} source @param {string} requestedPath */
 const readMergeRequestImageContent = async (launchPath, source, requestedPath) => {
   try {
-    const repoRoot = (await git(launchPath, ['rev-parse', '--show-toplevel'])).trim();
+    const repoRoot = await resolveRepositoryRoot(launchPath);
     const path = validateRepositoryPath(requestedPath);
     const mergeRequest = parseGitLabMergeRequestUrl(source.url);
     const metadata = await readMergeRequestMetadata(repoRoot, mergeRequest);
