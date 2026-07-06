@@ -1,11 +1,14 @@
 // @ts-check
 
-// Create a git commit from a walkthrough's staging set. The renderer hands in the
+// Create a commit from a walkthrough's staging set. The renderer hands in the
 // human-written subject, the agent-drafted body, and the repo-relative paths the
 // reviewer chose to include. Only those paths are committed — any other staged
 // changes are left untouched — so a reviewer can land part of a working tree.
+// In jj repositories the commit is created with `jj commit`, which splits the
+// selected paths out of the working-copy commit and keeps the rest in `@`.
 
 const { git, gitBufferWithInput, validateRepositoryPath } = require('./git-state/common.cjs');
+const { createJujutsuCommit, getJujutsuRoot } = require('./git-state/jj.cjs');
 
 /**
  * @typedef {import('../core/types.ts').WalkthroughCommitRequest} WalkthroughCommitRequest
@@ -41,6 +44,14 @@ const createWalkthroughCommit = async (repoPath, request) => {
   const message = body ? `${subject}\n\n${body}\n` : `${subject}\n`;
 
   try {
+    const jujutsuRoot = getJujutsuRoot(repoPath);
+    if (jujutsuRoot) {
+      return {
+        hash: await createJujutsuCommit(jujutsuRoot, message, paths),
+        status: 'committed',
+      };
+    }
+
     // Stage exactly the chosen paths (covers untracked files too), then commit
     // only those paths so previously-staged work on other files stays staged.
     await git(repoPath, ['add', '--', ...paths]);

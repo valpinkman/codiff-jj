@@ -11,6 +11,7 @@ const {
   git,
   gitOrEmpty,
   readGitFile,
+  resolveRepositoryRoot,
   summarizeContent,
   validateRepositoryPath,
 } = require('./common.cjs');
@@ -519,7 +520,7 @@ const normalizeGitHubPullRequestCommit = (commit) => normalizeGitHubCommit(commi
 
 /** @param {string} launchPath @param {Extract<ReviewSource, {type: 'pull-request'}>} source @param {number} [limit] */
 const listPullRequestHistory = async (launchPath, source, limit = 200) => {
-  const repoRoot = (await git(launchPath, ['rev-parse', '--show-toplevel'])).trim();
+  const repoRoot = await resolveRepositoryRoot(launchPath);
   const pullRequest = parseGitHubPullRequestUrl(source.url);
   const remote = await selectPullRequestRemote(repoRoot, pullRequest);
   const [metadata, commits] = await Promise.all([
@@ -761,7 +762,7 @@ const mapWithConcurrency = async (items, limit, mapper) => {
 
 /** @param {string} launchPath @param {Extract<ReviewSource, {type: 'pull-request'}>} source @returns {Promise<RepositoryState>} */
 const readPullRequestState = async (launchPath, source) => {
-  const repoRoot = (await git(launchPath, ['rev-parse', '--show-toplevel'])).trim();
+  const repoRoot = await resolveRepositoryRoot(launchPath);
   const pullRequest = parseGitHubPullRequestUrl(source.url);
   await assertPullRequestMatchesRepository(repoRoot, pullRequest);
 
@@ -833,7 +834,7 @@ const readPullRequestState = async (launchPath, source) => {
  */
 const readPullRequestImageContent = async (launchPath, source, requestedPath) => {
   try {
-    const repoRoot = (await git(launchPath, ['rev-parse', '--show-toplevel'])).trim();
+    const repoRoot = await resolveRepositoryRoot(launchPath);
     const path = validateRepositoryPath(requestedPath);
     const pullRequest = parseGitHubPullRequestUrl(source.url);
     await assertPullRequestMatchesRepository(repoRoot, pullRequest);
@@ -905,7 +906,7 @@ const normalizePullRequestComment = (comment) => {
 
 /** @param {string} launchPath @param {SubmitPullRequestCommentRequest} request */
 const submitPullRequestComment = async (launchPath, request) => {
-  const repoRoot = (await git(launchPath, ['rev-parse', '--show-toplevel'])).trim();
+  const repoRoot = await resolveRepositoryRoot(launchPath);
   const pullRequest = parseGitHubPullRequestUrl(request.source.url);
   await assertPullRequestMatchesRepository(repoRoot, pullRequest);
 
@@ -935,7 +936,7 @@ const submitPullRequestComment = async (launchPath, request) => {
 
 /** @param {string} launchPath @param {SubmitPullRequestReviewRequest} request */
 const submitPullRequestReview = async (launchPath, request) => {
-  const repoRoot = (await git(launchPath, ['rev-parse', '--show-toplevel'])).trim();
+  const repoRoot = await resolveRepositoryRoot(launchPath);
   const pullRequest = parseGitHubPullRequestUrl(request.source.url);
   await assertPullRequestMatchesRepository(repoRoot, pullRequest);
 

@@ -5,6 +5,11 @@ const { existsSync } = require('node:fs');
 const { resolve } = require('node:path');
 const { parseArgs } = require('node:util');
 const { readWalkthroughContext } = require('../walkthrough-context.cjs');
+const {
+  getJujutsuRoot,
+  isJujutsuBookmarkSync,
+  resolveJujutsuRefSync,
+} = require('../git-state/jj.cjs');
 const { parseReviewUrl, resolveReviewUrl } = require('../review-source.cjs');
 
 /**
@@ -54,16 +59,31 @@ const gitSucceeds = (repositoryPath, args) => {
 
 /** @param {string} repositoryPath */
 const isGitRepository = (repositoryPath) =>
+  getJujutsuRoot(repositoryPath) != null ||
   gitSucceeds(repositoryPath, ['rev-parse', '--show-toplevel']);
 
 /** @param {string} repositoryPath @param {string} ref */
-const isBranchRef = (repositoryPath, ref) =>
-  gitSucceeds(repositoryPath, ['show-ref', '--verify', '--quiet', `refs/heads/${ref}`]) ||
-  gitSucceeds(repositoryPath, ['show-ref', '--verify', '--quiet', `refs/remotes/${ref}`]);
+const isBranchRef = (repositoryPath, ref) => {
+  const jujutsuRoot = getJujutsuRoot(repositoryPath);
+  if (jujutsuRoot && isJujutsuBookmarkSync(jujutsuRoot, ref)) {
+    return true;
+  }
+
+  return (
+    gitSucceeds(repositoryPath, ['show-ref', '--verify', '--quiet', `refs/heads/${ref}`]) ||
+    gitSucceeds(repositoryPath, ['show-ref', '--verify', '--quiet', `refs/remotes/${ref}`])
+  );
+};
 
 /** @param {string} repositoryPath @param {string} ref */
-const isCommitRef = (repositoryPath, ref) =>
-  gitSucceeds(repositoryPath, ['rev-parse', '--verify', `${ref}^{commit}`]);
+const isCommitRef = (repositoryPath, ref) => {
+  const jujutsuRoot = getJujutsuRoot(repositoryPath);
+  if (jujutsuRoot && resolveJujutsuRefSync(jujutsuRoot, ref) != null) {
+    return true;
+  }
+
+  return gitSucceeds(repositoryPath, ['rev-parse', '--verify', `${ref}^{commit}`]);
+};
 
 /** @param {string} repositoryPath @param {string} ref */
 const resolveSourceCandidate = (repositoryPath, ref) =>

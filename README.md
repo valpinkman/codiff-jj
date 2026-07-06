@@ -58,6 +58,20 @@ Full GitHub and GitLab review URLs are also supported. GitLab hosts and nested p
 derived from the URL or local Git remote and authenticated through `glab`; Codiff does not require
 instance-specific configuration.
 
+## Jujutsu Support
+
+Codiff prefers [Jujutsu](https://jj-vcs.github.io) in repositories that have a `.jj` workspace and
+the `jj` CLI installed, and falls back to Git everywhere else:
+
+- The working-copy commit (`@`) is diffed against its parent — jj has no staging area, so each
+  changed file appears as a single section, and new files are tracked automatically.
+- Commits are created with `jj commit`; committing a subset of files splits them out of `@` and
+  keeps the remaining changes in the working copy.
+- Bookmarks, change IDs, and revsets work anywhere a Git ref does: `codiff main`,
+  `codiff <change-id>`, `codiff 'main..@'`.
+- The current bookmark (or the short change ID of `@`) is shown where Git's branch would be.
+- Both colocated and non-colocated (internal Git store) jj repositories are supported.
+
 Start with an LLM-generated narrative walkthrough. When generating a walkthrough without an
 explicit target, Codiff uses local changes when present and falls back to `HEAD` when the working
 tree is clean:

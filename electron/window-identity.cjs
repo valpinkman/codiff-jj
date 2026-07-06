@@ -3,6 +3,12 @@
 const { execFileSync } = require('node:child_process');
 const { realpathSync } = require('node:fs');
 const { dirname, resolve } = require('node:path');
+const {
+  getGitDirOverride,
+  getJujutsuRoot,
+  jjSync,
+  resolveJujutsuRefSync,
+} = require('./git-state/jj.cjs');
 const { parseReviewUrl } = require('./review-source.cjs');
 
 /**
@@ -21,9 +27,27 @@ const getRealPath = (path) => {
   }
 };
 
+/**
+ * Git invocation arguments that also work in jj repositories without a
+ * colocated `.git` directory by pointing Git at jj's backing store.
+ *
+ * @param {string} repositoryPath
+ * @param {ReadonlyArray<string>} args
+ */
+const getGitArgs = (repositoryPath, args) => {
+  const gitDir = getGitDirOverride(repositoryPath);
+  return gitDir
+    ? ['-C', repositoryPath, '--git-dir', gitDir, ...args]
+    : ['-C', repositoryPath, ...args];
+};
+
 /** @param {string} repositoryPath */
 const resolveRepositoryRoot = (repositoryPath) => {
   const resolvedPath = resolve(repositoryPath);
+  const jujutsuRoot = getJujutsuRoot(resolvedPath);
+  if (jujutsuRoot) {
+    return getRealPath(jujutsuRoot);
+  }
 
   try {
     return getRealPath(
@@ -38,10 +62,21 @@ const resolveRepositoryRoot = (repositoryPath) => {
 
 /** @param {string} repositoryRoot @param {string} ref */
 const resolveCommitRef = (repositoryRoot, ref) => {
+  if (getJujutsuRoot(repositoryRoot)) {
+    const resolved = resolveJujutsuRefSync(repositoryRoot, ref);
+    if (resolved) {
+      return resolved.toLowerCase();
+    }
+  }
+
   try {
-    return execFileSync('git', ['-C', repositoryRoot, 'rev-parse', '--verify', `${ref}^{commit}`], {
-      encoding: 'utf8',
-    })
+    return execFileSync(
+      'git',
+      getGitArgs(repositoryRoot, ['rev-parse', '--verify', `${ref}^{commit}`]),
+      {
+        encoding: 'utf8',
+      },
+    )
       .trim()
       .toLowerCase();
   } catch {
@@ -51,6 +86,15 @@ const resolveCommitRef = (repositoryRoot, ref) => {
 
 /** @param {string} repositoryRoot */
 const hasWorkingTreeChanges = (repositoryRoot) => {
+  const jujutsuRoot = getJujutsuRoot(repositoryRoot);
+  if (jujutsuRoot) {
+    try {
+      return Boolean(jjSync(jujutsuRoot, ['diff', '--summary']).trim());
+    } catch {
+      return false;
+    }
+  }
+
   try {
     return Boolean(
       execFileSync(
@@ -67,7 +111,7 @@ const hasWorkingTreeChanges = (repositoryRoot) => {
 /** @param {string} repositoryRoot @param {string} baseRef @param {string} headRef */
 const resolveMergeBase = (repositoryRoot, baseRef, headRef) => {
   try {
-    return execFileSync('git', ['-C', repositoryRoot, 'merge-base', baseRef, headRef], {
+    return execFileSync('git', getGitArgs(repositoryRoot, ['merge-base', baseRef, headRef]), {
       encoding: 'utf8',
     })
       .trim()

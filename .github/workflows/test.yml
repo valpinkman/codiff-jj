@@ -18,5 +18,11 @@ jobs:
           node-version: ${{ matrix.node-version }}
           cache: true
           run-install: true
+      - name: Install Jujutsu for jj integration tests
+        run: |
+          curl -fsSL https://github.com/jj-vcs/jj/releases/download/v0.43.0/jj-v0.43.0-x86_64-unknown-linux-musl.tar.gz -o /tmp/jj.tar.gz &&
+            sudo tar -xzf /tmp/jj.tar.gz -C /usr/local/bin --wildcards '*jj' &&
+            jj --version ||
+            echo "jj installation failed; jj integration tests will be skipped"
       - run: |
           vp run test:all

@@ -5,6 +5,7 @@ const { promises: fs } = require('node:fs');
 const { createHash } = require('node:crypto');
 const { isAbsolute, join, normalize, sep } = require('node:path');
 const { promisify } = require('node:util');
+const { getGitDirOverride, getJujutsuRoot } = require('./jj.cjs');
 
 const execFileAsync = promisify(execFile);
 
@@ -49,13 +50,27 @@ const getGravatarHash = (email) =>
   createHash('md5').update(email.trim().toLowerCase()).digest('hex');
 
 /**
+ * Object reads in jj repositories without a colocated `.git` directory go
+ * through jj's backing Git store via `--git-dir`. Everywhere else this is a
+ * plain `git -C <repoPath>` invocation.
+ *
+ * @param {string} repoPath
+ * @param {ReadonlyArray<string>} args
+ * @returns {Array<string>}
+ */
+const getGitCommandArgs = (repoPath, args) => {
+  const gitDir = getGitDirOverride(repoPath);
+  return gitDir ? ['-C', repoPath, '--git-dir', gitDir, ...args] : ['-C', repoPath, ...args];
+};
+
+/**
  * @param {string} repoPath
  * @param {ReadonlyArray<string>} args
  * @param {{encoding?: BufferEncoding}} [options]
  * @returns {Promise<string>}
  */
 const git = async (repoPath, args, options = {}) => {
-  const { stdout } = await execFileAsync('git', ['-C', repoPath, ...args], {
+  const { stdout } = await execFileAsync('git', getGitCommandArgs(repoPath, args), {
     encoding: options.encoding || 'utf8',
     maxBuffer: 1024 * 1024 * 64,
   });
@@ -64,7 +79,7 @@ const git = async (repoPath, args, options = {}) => {
 
 /** @param {string} repoPath @param {ReadonlyArray<string>} args @returns {Promise<Buffer>} */
 const gitBuffer = async (repoPath, args) => {
-  const { stdout } = await execFileAsync('git', ['-C', repoPath, ...args], {
+  const { stdout } = await execFileAsync('git', getGitCommandArgs(repoPath, args), {
     encoding: 'buffer',
     maxBuffer: 1024 * 1024 * 64,
   });
@@ -79,7 +94,7 @@ const gitBuffer = async (repoPath, args) => {
  */
 const gitBufferWithInput = (repoPath, args, input) =>
   new Promise((resolve, reject) => {
-    const child = spawn('git', ['-C', repoPath, ...args], {
+    const child = spawn('git', getGitCommandArgs(repoPath, args), {
       stdio: ['pipe', 'pipe', 'pipe'],
     });
     /** @type {Array<Buffer>} */
@@ -801,6 +816,28 @@ const gitOrEmpty = async (repoRoot, args) => {
   }
 };
 
+/**
+ * Resolve the repository root for any launch path: the jj workspace root when
+ * the path is inside a jj repository (and jj is installed), otherwise Git's
+ * top-level directory.
+ *
+ * @param {string} launchPath
+ * @returns {Promise<string>}
+ */
+const resolveRepositoryRoot = async (launchPath) => {
+  const jujutsuRoot = getJujutsuRoot(launchPath);
+  return jujutsuRoot || (await git(launchPath, ['rev-parse', '--show-toplevel'])).trim();
+};
+
+/** @param {string} launchPath @returns {Promise<string>} */
+const resolveRepositoryRootOrEmpty = async (launchPath) => {
+  try {
+    return await resolveRepositoryRoot(launchPath);
+  } catch {
+    return '';
+  }
+};
+
 module.exports = {
   EAGER_TEXT_FILE_LIMIT,
   GENERATED_DIRECTORY_NAMES,
@@ -838,6 +875,8 @@ module.exports = {
   readIndexImageFile,
   readWorkingTreeImageFile,
   readWorkingTreeFile,
+  resolveRepositoryRoot,
+  resolveRepositoryRootOrEmpty,
   summarizeContent,
   validateRepositoryPath,
 };

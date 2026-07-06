@@ -2,9 +2,11 @@ import { execFileSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { parseArgs } from 'node:util';
+import jujutsu from '../electron/git-state/jj.cjs';
 import reviewSource from '../electron/review-source.cjs';
 
 const { parseReviewUrl, resolveReviewUrl } = reviewSource;
+const { getJujutsuRoot, isJujutsuBookmarkSync, resolveJujutsuRefSync } = jujutsu;
 
 export const flagDefinitions = [
   {
@@ -186,14 +188,29 @@ const gitSucceeds = (repositoryPath, args) => {
 };
 
 const isGitRepository = (repositoryPath) =>
+  getJujutsuRoot(repositoryPath) != null ||
   gitSucceeds(repositoryPath, ['rev-parse', '--show-toplevel']);
 
-const isBranchRef = (repositoryPath, ref) =>
-  gitSucceeds(repositoryPath, ['show-ref', '--verify', '--quiet', `refs/heads/${ref}`]) ||
-  gitSucceeds(repositoryPath, ['show-ref', '--verify', '--quiet', `refs/remotes/${ref}`]);
+const isBranchRef = (repositoryPath, ref) => {
+  const jujutsuRoot = getJujutsuRoot(repositoryPath);
+  if (jujutsuRoot && isJujutsuBookmarkSync(jujutsuRoot, ref)) {
+    return true;
+  }
 
-const isCommitRef = (repositoryPath, ref) =>
-  gitSucceeds(repositoryPath, ['rev-parse', '--verify', `${ref}^{commit}`]);
+  return (
+    gitSucceeds(repositoryPath, ['show-ref', '--verify', '--quiet', `refs/heads/${ref}`]) ||
+    gitSucceeds(repositoryPath, ['show-ref', '--verify', '--quiet', `refs/remotes/${ref}`])
+  );
+};
+
+const isCommitRef = (repositoryPath, ref) => {
+  const jujutsuRoot = getJujutsuRoot(repositoryPath);
+  if (jujutsuRoot && resolveJujutsuRefSync(jujutsuRoot, ref) != null) {
+    return true;
+  }
+
+  return gitSucceeds(repositoryPath, ['rev-parse', '--verify', `${ref}^{commit}`]);
+};
 
 const resolveSourceCandidate = (repositoryPath, ref) =>
   isCommitRefArgument(ref) && isCommitRef(repositoryPath, ref)

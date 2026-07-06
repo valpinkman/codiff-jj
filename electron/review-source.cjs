@@ -1,6 +1,7 @@
 // @ts-check
 
 const { execFileSync } = require('node:child_process');
+const { findJujutsuRoot, getGitDirOverride } = require('./git-state/jj.cjs');
 
 /** @typedef {'github' | 'gitlab'} ReviewProvider */
 
@@ -79,10 +80,19 @@ const parseRemoteUrl = (value) => {
 
 /** @param {string} repositoryPath */
 const readReviewRemotes = (repositoryPath) => {
-  const root = execFileSync('git', ['-C', repositoryPath, 'rev-parse', '--show-toplevel'], {
-    encoding: 'utf8',
-  }).trim();
-  const raw = execFileSync('git', ['-C', root, 'remote', '-v'], { encoding: 'utf8' });
+  // jj workspaces may not expose a Git top level (internal store); resolve the
+  // root from the `.jj` directory and read remotes from jj's backing store.
+  const root =
+    findJujutsuRoot(repositoryPath) ||
+    execFileSync('git', ['-C', repositoryPath, 'rev-parse', '--show-toplevel'], {
+      encoding: 'utf8',
+    }).trim();
+  const gitDir = getGitDirOverride(root);
+  const raw = execFileSync(
+    'git',
+    gitDir ? ['-C', root, '--git-dir', gitDir, 'remote', '-v'] : ['-C', root, 'remote', '-v'],
+    { encoding: 'utf8' },
+  );
   const remotes = [];
   for (const line of raw.split('\n')) {
     const match = line.match(/^(\S+)\s+(\S+)\s+\((fetch|push)\)$/);
